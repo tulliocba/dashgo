@@ -1,34 +1,35 @@
-import { Box, Button, Checkbox, Flex, Heading, Icon, Spinner, Table, Tbody, Td, Text, Th, Thead, Tr, useBreakpointValue } from "@chakra-ui/react";
-import Link from "next/link";
+import { Box, Button, Checkbox, Flex, Heading, Icon, Link, Spinner, Table, Tbody, Td, Text, Th, Thead, Tr, useBreakpointValue } from "@chakra-ui/react";
+import NextLink from "next/link";
 import React, { useEffect } from "react";
 import { RiAddLine, RiPencilLine } from "react-icons/ri";
 import { Header } from "../../components/Header";
 import { Pagination } from "../../components/Pagination";
 import { Sidebar } from "../../components/Sidebar";
-import { useQuery } from "react-query";
+import { api } from "../../services/api";
+import { useUsers } from "../../services/hooks/useUsers";
+import { useState } from "react";
+import { queryClient } from "../../services/QueryClient";
 
 export default function UserList() {
 
-    const { data, isLoading, isFetching, error } = useQuery('users', async () => await fetch('http://localhost:3000/api/users')
-        .then(response => response.json()), { 
-            staleTime: 1000 * 5
-        });
+    const [page, setPage] = useState(1);
 
-    const users = data?.users.map(user => ({ 
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        createdAt: new Date(user.createdAt).toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: 'long',
-            year: 'numeric'
-        })
-    }))
+    const { data, isLoading, isFetching, error } = useUsers(page);
 
     const isWideVersion = useBreakpointValue({
         base: false,
         lg: true
     });
+
+    const handlePreFetchUser = async (userId: string) => {
+        await queryClient.prefetchQuery(['user', userId], async () => {
+            const response = await api.get(`/users/${userId}`);
+            return response.data;
+        }, { 
+            staleTime: 1000 * 30, 
+        });
+
+    }
 
 
     return (
@@ -42,10 +43,10 @@ export default function UserList() {
                         <Heading size="lg" fontWeight="normal">
                             Usuários
 
-                            {!isLoading && isFetching && <Spinner size="sm" color="gray.500" ml="4"/>}
+                            {!isLoading && isFetching && <Spinner size="sm" color="gray.500" ml="4" />}
                         </Heading>
 
-                        <Link href="/users/create" passHref>
+                        <NextLink href="/users/create" passHref>
                             {isWideVersion ?
                                 <Button
                                     as="a"
@@ -68,7 +69,7 @@ export default function UserList() {
                                 </Button>
                             }
 
-                        </Link>
+                        </NextLink>
                     </Flex>
                     {isLoading ? (
                         <Flex justify="center">
@@ -92,14 +93,16 @@ export default function UserList() {
                                     </Tr>
                                 </Thead>
                                 <Tbody>
-                                    {users.map(user => (
+                                    {data?.users.map(user => (
                                         <Tr key={user.id}>
                                             <Td px={["4", "4", "6"]}>
                                                 <Checkbox colorScheme="pink" />
                                             </Td>
                                             <Td>
                                                 <Box>
-                                                    <Text fontWeight="bold">{user.name}</Text>
+                                                    <Link color="purple.400" onMouseEnter={() => handlePreFetchUser(user.id)}>
+                                                        <Text fontWeight="bold">{user.name}</Text>
+                                                    </Link>
                                                     <Text fontSize="sm" color="gray.300">{user.email}</Text>
                                                 </Box>
                                             </Td>
@@ -129,7 +132,11 @@ export default function UserList() {
                                 </Tbody>
                             </Table>
 
-                            <Pagination />
+                            <Pagination
+                                totalCountOfRegiters={data?.totalCount}
+                                currentPage={page}
+                                onPageChange={setPage}
+                            />
                         </>
                     )}
                 </Box>
